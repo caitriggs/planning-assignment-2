@@ -52,109 +52,130 @@ class BoardState:
 
     def is_termination_state(self):
         """
-        Checks if the current state is a termination state. A player wins if:
-        - White (bottom) moves their ball to the top row (row 7)
-        - Black (top) moves their ball to the bottom row (row 0)
+        Checks if the current state is a termination state.
+        White wins if their ball is in row 7 (positions 49-55).
+        Black wins if their ball is in row 0 (positions 0-6).
+        Both players cannot be in a winning state at the same time.
         """
-        white_ball_pos = self.state[5]  # White ball index
-        black_ball_pos = self.state[11]  # Black ball index
+        white_ball_idx = 5  # White's ball is at index 5
+        black_ball_idx = 11  # Black's ball is at index 11
 
-        # Decode the positions
-        white_ball_coord = self.decode_single_pos(white_ball_pos)
-        black_ball_coord = self.decode_single_pos(black_ball_pos)
+        white_wins = 49 <= self.state[white_ball_idx] <= 55  # White wins if in positions 49-55
+        black_wins = 0 <= self.state[black_ball_idx] <= 6    # Black wins if in positions 0-6
 
-        # Check if White's ball is on the top row (row 7) or Black's ball is on bottom row (row 0)
-        if white_ball_coord[1] == 7:
-            return True  # White wins
-        if black_ball_coord[1] == 0:
-            return True  # Black wins
-        
-        return False
+        # Both players cannot win at the same time
+        if white_wins and black_wins:
+            return False  # Invalid state: both players can't win simultaneously
+
+        # Return True if either White or Black wins
+        return white_wins or black_wins
 
     def is_valid(self):
         """
-        Checks if a board configuration is valid.
+        Validates the board state by checking piece positions and constraints
         """
-        # All positions should be within the range [0, 55]
-        if not all(0 <= pos <= 55 for pos in self.state):
-            return False
+        positions = set()
 
-        # There should be no duplicate positions
-        if len(set(self.state)) != len(self.state):
-            return False
+        # Check all pieces' positions
+        for idx in range(len(self.state)):
+            pos = self.decode_single_pos(self.state[idx])
+            if not (0 <= pos[0] < self.N_COLS and 0 <= pos[1] < self.N_ROWS):  # Check bounds
+                return False
+            if pos in positions:  # Ensure no overlapping pieces
+                return False
+            positions.add(pos)
 
-        # Each player must have 5 block pieces and 1 ball piece
-        # We assume the given initial state is valid, so no further validation on the piece counts is needed
         return True
+
 
 class Rules:
 
     @staticmethod
-    def single_piece_actions(board_state, piece_idx):
+    def single_piece_actions(board_state, piece_idx: int):
         """
-        Returns the set of possible actions for the given block piece (not holding a ball) at piece_idx
-        """
-        current_pos = board_state.decode_state[piece_idx]
-        col, row = current_pos
+        Returns possible L-shaped moves (knight-like) for a block piece at a specific index.
+        The piece can only move to unoccupied spaces, and only if it is not holding the ball.
+
+        Input: 
+            - board_state: The current state of the game.
+            - piece_idx: Index of the block piece (0 to 4 or 6 to 10, since we're excluding the ball).
         
-        # Possible knight moves (dx, dy)
-        possible_moves = [
+        Output:
+            - Set of possible encoded positions (integers) where the block piece can move.
+        """
+        current_pos = board_state.decode_state[piece_idx]  # Get current (col, row) of the block piece
+        col, row = current_pos
+
+        # Check if this piece is holding the ball (no movement allowed if holding the ball)
+        ball_idx = 5 if piece_idx < 6 else 11
+        if board_state.state[ball_idx] == board_state.state[piece_idx]:
+            return set()  # Return an empty set since the block is holding the ball
+
+        # Possible knight-like moves (L-shaped moves)
+        moves = [
             (col + 2, row + 1), (col + 2, row - 1), 
             (col - 2, row + 1), (col - 2, row - 1),
-            (col + 1, row + 2), (col + 1, row - 2),
+            (col + 1, row + 2), (col + 1, row - 2), 
             (col - 1, row + 2), (col - 1, row - 2)
         ]
-        
+
         valid_moves = set()
-        
-        # Check if each move is within the bounds of the board and the destination is unoccupied
-        for move in possible_moves:
-            move_col, move_row = move
-            if 0 <= move_col < board_state.N_COLS and 0 <= move_row < board_state.N_ROWS:
-                # Encode the new position
-                encoded_pos = board_state.encode_single_pos(move)
-                
-                # Check if the space is unoccupied
-                if encoded_pos not in board_state.state:
-                    valid_moves.add(encoded_pos)
-        
+        for move in moves:
+            if 0 <= move[0] < board_state.N_COLS and 0 <= move[1] < board_state.N_ROWS:
+                encoded_move = board_state.encode_single_pos(move)
+
+                # Check if the destination is unoccupied
+                if encoded_move not in board_state.state:
+                    valid_moves.add(encoded_move)
+
         return valid_moves
 
+
     @staticmethod
-    def single_ball_actions(board_state, player_idx):
+    def single_ball_actions(board_state, player_idx: int):
         """
-        Returns the set of possible actions for the ball for the given player
-        """
-        ball_idx = 5 if player_idx == 0 else 11  # The ball is at index 5 for white, 11 for black
-        ball_pos = board_state.decode_state[ball_idx]
-        col, row = ball_pos
+        Returns possible ball passing actions for a player. The ball can only be passed from one block
+        piece to another of the same color along vertical, horizontal, or diagonal paths, provided that
+        no opposing block pieces intercept the path.
+
+        Input:
+            - board_state: The current state of the game.
+            - player_idx: Index of the player (0 for White, 1 for Black).
         
+        Output:
+            - Set of possible encoded positions (integers) where the ball can be passed to.
+        """
+        ball_idx = 5 if player_idx == 0 else 11  # White's ball is index 5, Black's ball is index 11
+        current_pos = board_state.decode_state[ball_idx]  # Get ball's current position
+        col, row = current_pos
+
+        # Get the positions of all block pieces
+        own_pieces = [board_state.decode_state[i] for i in range(player_idx * 6, player_idx * 6 + 5)]
+        opposing_pieces = [board_state.decode_state[i] for i in range((1 - player_idx) * 6, (1 - player_idx) * 6 + 5)]
+
         valid_moves = set()
-        
-        # Ball can pass like a queen in vertical, horizontal, or diagonal directions
-        directions = [
-            (1, 0), (-1, 0),  # Horizontal
-            (0, 1), (0, -1),  # Vertical
-            (1, 1), (1, -1), (-1, 1), (-1, -1)  # Diagonal
-        ]
-        
-        for direction in directions:
-            dcol, drow = direction
-            cur_col, cur_row = col + dcol, row + drow
-            
-            while 0 <= cur_col < board_state.N_COLS and 0 <= cur_row < board_state.N_ROWS:
-                encoded_pos = board_state.encode_single_pos((cur_col, cur_row))
-                
-                if encoded_pos in board_state.state:
-                    break  # Opponent blocks the pass, can't move further
-                
-                # Only allow passes to same-colored block pieces
-                if encoded_pos in board_state.state[player_idx * 6: (player_idx + 1) * 6]:
+
+        # Check vertical, horizontal, and diagonal passing channels
+        directions = [(0, 1), (1, 0), (1, 1), (-1, 1), (0, -1), (-1, 0), (-1, -1), (1, -1)]
+
+        for dcol, drow in directions:
+            new_col, new_row = col + dcol, row + drow
+
+            while 0 <= new_col < board_state.N_COLS and 0 <= new_row < board_state.N_ROWS:
+                encoded_pos = board_state.encode_single_pos((new_col, new_row))
+
+                # Check if a piece of the same color is at this position
+                if (new_col, new_row) in own_pieces:
                     valid_moves.add(encoded_pos)
-                
-                cur_col += dcol
-                cur_row += drow
-        
+
+                # Check if an opposing piece blocks the path
+                if (new_col, new_row) in opposing_pieces:
+                    break
+
+                # Move to the next square in the same direction
+                new_col += dcol
+                new_row += drow
+
         return valid_moves
     
 
@@ -199,56 +220,58 @@ class GameSimulator:
 
     def generate_valid_actions(self, player_idx: int):
         """
-        Given a valid state, and a player's turn, generate the set of possible actions that player can take
-
-        player_idx is either 0 or 1
-
+        Enumerates all valid actions for a player. An action is encoded as a tuple
+        (relative_idx, encoded_position), where relative_idx is the relative index
+        of the piece with respect to the player and encoded_position is the new position.
+        
         Input:
-            - player_idx, which indicates the player that is moving this turn. This will help index into the
-              current BoardState which is self.game_state
-        Outputs:
-            - a set of tuples (relative_idx, encoded position), each of which encodes an action. The set should include
-              all possible actions that the player can take during this turn. relative_idx must be an
-              integer on the interval [0, 5] inclusive. Given relative_idx and player_idx, the index for any
-              piece in the boardstate can be obtained, so relative_idx is the index relative to current player's
-              pieces. Pieces with relative index 0,1,2,3,4 are block pieces that like knights in chess, and
-              relative index 5 is the player's ball piece.
+            - player_idx: Index of the player (0 for White, 1 for Black).
+        
+        Output:
+            - Set of valid actions the player can take.
         """
-        valid_actions = set()
-        offset_idx = player_idx * 6  # Either 0 (white) or 6 (black)
-        
-        # Iterate over each of the 5 block pieces
+        actions = set()
+
+        # Generate actions for block pieces (relative indices 0-4 for both players)
         for i in range(5):
-            piece_idx = offset_idx + i
-            piece_actions = Rules.single_piece_actions(self.game_state, piece_idx)
-            for action in piece_actions:
-                valid_actions.add((i, action))
-        
-        # Check ball actions (relative index 5)
-        ball_actions = Rules.single_ball_actions(self.game_state, player_idx)
-        for action in ball_actions:
-            valid_actions.add((5, action))
-        
-        return valid_actions
-    
+            piece_idx = player_idx * 6 + i  # Get actual index in the state array
+            valid_moves = Rules.single_piece_actions(self.game_state, piece_idx)
+            for move in valid_moves:
+                actions.add((i, move))  # (relative index, encoded position)
+
+        # Generate actions for the ball (relative index 5)
+        ball_moves = Rules.single_ball_actions(self.game_state, player_idx)
+        for move in ball_moves:
+            actions.add((5, move))  # (relative index, encoded position)
+
+        return actions
+
     def validate_action(self, action: tuple, player_idx: int):
         """
-        Checks whether or not the specified action can be taken from this state by the specified player
-
-        Inputs:
-            - action is a tuple (relative_idx, encoded position)
-            - player_idx is an integer 0 or 1 representing the player that is moving this turn
-            - self.game_state represents the current BoardState
-
+        Validates the specified action for a given player. If the action is valid, return True.
+        If the action is invalid, raise a ValueError with a description of why the action is not valid.
+        
+        Input:
+            - action: Tuple (relative_idx, encoded_position), where relative_idx is the index
+                    relative to the player's pieces and encoded_position is the target position.
+            - player_idx: Index of the player (0 for White, 1 for Black).
+        
         Output:
-            - if the action is valid, return True
-            - if the action is not valid, raise ValueError
+            - True if the action is valid, raises ValueError otherwise.
         """
-        valid_actions = self.generate_valid_actions(player_idx)
-        
-        if action not in valid_actions:
-            raise ValueError(f"Invalid action: {action} for player {player_idx}")
-        
+        relative_idx, encoded_pos = action
+
+        if not (0 <= relative_idx <= 5):  # Invalid piece index
+            raise ValueError(f"Invalid piece index: {relative_idx}")
+
+        if relative_idx < 5:  # Block pieces (indices 0-4)
+            valid_moves = Rules.single_piece_actions(self.game_state, player_idx * 6 + relative_idx)
+        else:  # Ball (index 5)
+            valid_moves = Rules.single_ball_actions(self.game_state, player_idx)
+
+        if encoded_pos not in valid_moves:  # Invalid move
+            raise ValueError(f"Invalid move for piece {relative_idx} to position {encoded_pos}")
+
         return True
     
     def update(self, action: tuple, player_idx: int):
@@ -258,3 +281,12 @@ class GameSimulator:
         offset_idx = player_idx * 6 ## Either 0 or 6
         idx, pos = action
         self.game_state.update(offset_idx + idx, pos)
+
+
+if __name__ == '__main__':
+    def test_termination_state(state):
+        board = BoardState()
+        board.state = np.array(state)
+        board.decode_state = board.make_state()
+        return board.is_termination_state()
+    print(test_termination_state([1,2,3,4,49,49,50,51,52,53,54,0]))

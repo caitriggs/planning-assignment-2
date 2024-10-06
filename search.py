@@ -56,19 +56,14 @@ class GameStateProblem(Problem):
         self.search_alg_fnc = None
         self.set_search_alg()
 
-    def set_search_alg(self, alg="BFS"):
+    def set_search_alg(self, alg=""):
         """
         If you decide to implement several search algorithms, and you wish to switch between them,
         pass a string as a parameter to alg, and then set:
             self.search_alg_fnc = self.your_method
         to indicate which algorithm you'd like to run.
         """
-        if alg == "A*":
-            self.search_alg_fnc = self.a_star_search
-        elif alg == "BFS":
-            self.search_alg_fnc = self.bfs_search
-        else:
-            self.search_alg_fnc = None
+        self.search_alg_fnc = self.bfs_search
 
     def get_actions(self, state: tuple):
         """
@@ -132,66 +127,45 @@ class GameStateProblem(Problem):
     ## NOTE: Remember to set self.search_alg_fnc in set_search_alg above.
     ## 
 
-    def reconstruct_path(self, came_from, current_state):
+    def is_goal(self, state):
         """
-        Reconstruct the path from the initial state to the goal state.
-
-        The path is a list of (state, action) pairs.
+        Checks if the state is a goal state in the set of goal states
         """
-        path = []
-        
-        while current_state is not None:
-            if came_from[current_state] is not None:
-                parent_state, action = came_from[current_state]
-                path.append((current_state, action))  # Append the current state and action
-                current_state = parent_state
-            else:
-                path.append((current_state, None))  # Initial state has no parent
-                current_state = None
-
-        # Reverse the path to go from start to goal
-        path.reverse()
-
-        # Fix the first state's action to reflect the action that was taken to leave the initial state
-        if len(path) > 1 and path[0][1] is None:
-            path[0] = (path[0][0], path[1][1])  # Set the first action based on the second element
-        # Ensure the last state (goal state) has None as its action
-        path[-1] = (path[-1][0], None)
-        return path
+        return state in self.goal_state_set
 
     def bfs_search(self):
         """
-        Breadth-First Search algorithm to find the optimal sequence of moves from the initial state to the goal state.
-        Returns a list of (state, action) pairs.
+        Implements a Breadth-First Search (BFS) to find the shortest sequence of moves
+        from the initial state to the goal state.
         """
-        initial_state = self.initial_state
-        goal_state_set = self.goal_state_set
-
-        # Queue for the frontier (states to explore)
+        # Initialize BFS structures
         frontier = queue.Queue()
-        frontier.put((initial_state, None))  # (state, action that led to the state)
-
-        # Dictionary to track where we came from and which action was taken
-        came_from = {initial_state: None}
+        frontier.put((self.initial_state, []))  # Start with initial state and an empty path
+        visited = set()
+        visited.add(self.initial_state)
 
         while not frontier.empty():
-            current_state, current_action = frontier.get()
+            current_state, path = frontier.get()
 
             # Check if we reached the goal
-            if current_state in goal_state_set:
-                return self.reconstruct_path(came_from, current_state)
+            if self.is_goal(current_state):
+                # Return the path that leads to this goal
+                return path + [(current_state, None)]  # Append the final state with no action
+            
+            # Get possible actions for the current state
+            possible_actions = self.get_actions(current_state)
 
-            # Get available actions from the current state
-            actions = self.get_actions(current_state)
-
-            for action in actions:
+            # For each possible action, generate the next state
+            for action in possible_actions:
                 next_state = self.execute(current_state, action)
 
-                if next_state not in came_from:  # If not visited
-                    frontier.put((next_state, action))
-                    came_from[next_state] = (current_state, action)
+                if next_state not in visited:
+                    visited.add(next_state)
+                    # Add the new state and the action leading to it to the queue
+                    frontier.put((next_state, path + [(current_state, action)]))
 
         return None  # No solution found
+
 
 
 if __name__ == '__main__':
@@ -203,7 +177,7 @@ if __name__ == '__main__':
     sln = gsp.search_alg_fnc()
 
     ## Single Step
-    ref = [(tuple((tuple(b1.state), 0)), (0, 10)), (tuple((tuple(b2.state), 0)), (0, 14))]
-
+    ref = [(tuple((tuple(b1.state), 0)), (0, 14)), (tuple((tuple(b2.state), 1)), None)]
+        
     print(f"Our Search: {sln}")
     print(f"Actual Reference: {ref}")
