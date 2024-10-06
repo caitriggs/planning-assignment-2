@@ -1,5 +1,5 @@
 import numpy as np
-import queue
+import queue, heapq
 from game import BoardState, GameSimulator, Rules
 
 class Problem:
@@ -56,16 +56,19 @@ class GameStateProblem(Problem):
         self.search_alg_fnc = None
         self.set_search_alg()
 
-    def set_search_alg(self, alg=""):
+    def set_search_alg(self, alg="BFS"):
         """
         If you decide to implement several search algorithms, and you wish to switch between them,
         pass a string as a parameter to alg, and then set:
             self.search_alg_fnc = self.your_method
         to indicate which algorithm you'd like to run.
-
-        TODO: You need to set self.search_alg_fnc here
         """
-        self.search_alg_fnc = None
+        if alg == "A*":
+            self.search_alg_fnc = self.a_star_search
+        elif alg == "BFS":
+            self.search_alg_fnc = self.bfs_search
+        else:
+            self.search_alg_fnc = None
 
     def get_actions(self, state: tuple):
         """
@@ -128,11 +131,79 @@ class GameStateProblem(Problem):
     ## NOTE: self.execute acts like the transition function.
     ## NOTE: Remember to set self.search_alg_fnc in set_search_alg above.
     ## 
-    """ Here is an example:
-    
-    def my_snazzy_search_algorithm(self):
-        ## Some kind of search algorithm
-        ## ...
-        return solution ## Solution is an ordered list of (s,a)
-    """
 
+    def reconstruct_path(self, came_from, current_state):
+        """
+        Reconstruct the path from the initial state to the goal state.
+
+        The path is a list of (state, action) pairs.
+        """
+        path = []
+        
+        while current_state is not None:
+            if came_from[current_state] is not None:
+                parent_state, action = came_from[current_state]
+                path.append((current_state, action))  # Append the current state and action
+                current_state = parent_state
+            else:
+                path.append((current_state, None))  # Initial state has no parent
+                current_state = None
+
+        # Reverse the path to go from start to goal
+        path.reverse()
+
+        # Fix the first state's action to reflect the action that was taken to leave the initial state
+        if len(path) > 1 and path[0][1] is None:
+            path[0] = (path[0][0], path[1][1])  # Set the first action based on the second element
+        # Ensure the last state (goal state) has None as its action
+        path[-1] = (path[-1][0], None)
+        return path
+
+    def bfs_search(self):
+        """
+        Breadth-First Search algorithm to find the optimal sequence of moves from the initial state to the goal state.
+        Returns a list of (state, action) pairs.
+        """
+        initial_state = self.initial_state
+        goal_state_set = self.goal_state_set
+
+        # Queue for the frontier (states to explore)
+        frontier = queue.Queue()
+        frontier.put((initial_state, None))  # (state, action that led to the state)
+
+        # Dictionary to track where we came from and which action was taken
+        came_from = {initial_state: None}
+
+        while not frontier.empty():
+            current_state, current_action = frontier.get()
+
+            # Check if we reached the goal
+            if current_state in goal_state_set:
+                return self.reconstruct_path(came_from, current_state)
+
+            # Get available actions from the current state
+            actions = self.get_actions(current_state)
+
+            for action in actions:
+                next_state = self.execute(current_state, action)
+
+                if next_state not in came_from:  # If not visited
+                    frontier.put((next_state, action))
+                    came_from[next_state] = (current_state, action)
+
+        return None  # No solution found
+
+
+if __name__ == '__main__':
+    b1 = BoardState()
+    b2 = BoardState()
+    b2.update(0, 23)
+
+    gsp = GameStateProblem(b1, b2, 0)
+    sln = gsp.search_alg_fnc()
+
+    ## Single Step
+    ref = [(tuple((tuple(b1.state), 0)), (0, 10)), (tuple((tuple(b2.state), 0)), (0, 14))]
+
+    print(f"Our Search: {sln}")
+    print(f"Actual Reference: {ref}")
