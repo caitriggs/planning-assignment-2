@@ -142,15 +142,17 @@ class Rules:
 
         valid_moves = set()
         for move in moves:
-            if 0 <= move[0] < board_state.N_COLS and 0 <= move[1] < board_state.N_ROWS:
+            new_col, new_row = move
+
+            # Ensure the move is within bounds of the 8x7 grid
+            if 0 <= new_col < board_state.N_COLS and 0 <= new_row < board_state.N_ROWS:
                 encoded_move = board_state.encode_single_pos(move)
 
-                # Check if the destination is unoccupied
+                # Ensure the destination is unoccupied by any piece
                 if encoded_move not in board_state.state:
                     valid_moves.add(encoded_move)
 
         return valid_moves
-
 
     @staticmethod
     def single_ball_actions(board_state, player_idx: int):
@@ -182,16 +184,17 @@ class Rules:
         for dcol, drow in directions:
             new_col, new_row = col + dcol, row + drow
 
+            # Move along the direction until we hit a boundary or a block
             while 0 <= new_col < board_state.N_COLS and 0 <= new_row < board_state.N_ROWS:
                 encoded_pos = board_state.encode_single_pos((new_col, new_row))
 
-                # Check if a piece of the same color is at this position
-                if (new_col, new_row) in own_pieces:
-                    valid_moves.add(encoded_pos)
-
                 # Check if an opposing piece blocks the path
                 if (new_col, new_row) in opposing_pieces:
-                    break
+                    break  # Stop if an opponent's piece is in the way
+
+                # If a piece of the same color is at this position, it's a valid passing destination
+                if (new_col, new_row) in own_pieces:
+                    valid_moves.add(encoded_pos)
 
                 # Move to the next square in the same direction
                 new_col += dcol

@@ -63,7 +63,13 @@ class GameStateProblem(Problem):
             self.search_alg_fnc = self.your_method
         to indicate which algorithm you'd like to run.
         """
-        self.search_alg_fnc = self.bfs_search
+        if alg=='BFS':
+            self.search_alg_fnc = self.bfs_search
+        elif alg=='ASTAR':
+            self.search_alg_fnc = self.a_star_search
+        else:
+            self.search_alg_fnc = self.bfs_search
+        print(f"Using algo: {self.search_alg_fnc()}")
 
     def get_actions(self, state: tuple):
         """
@@ -166,18 +172,277 @@ class GameStateProblem(Problem):
 
         return None  # No solution found
 
+    def a_star_search(self):
+        """
+        Implements the A* Search algorithm to find the optimal sequence of moves from the
+        initial state to the goal state.
+        """
+        # Initialize the priority queue (min-heap) with the initial state and g(n) = 0
+        frontier = []
+        heapq.heappush(frontier, (0, self.initial_state, []))  # (f(n), state, path)
+        
+        # A dictionary to store the cost of the cheapest path to a state
+        g_cost = {self.initial_state: 0}
+
+        # A set to keep track of visited states
+        visited = set()
+
+        while frontier:
+            # Get the state with the lowest f(n) value from the priority queue
+            _, current_state, path = heapq.heappop(frontier)
+
+            # If we've reached the goal state, return the path
+            if self.is_goal(current_state):
+                return path + [(current_state, None)]  # Append the final state with no action
+
+            if current_state in visited:
+                continue
+
+            visited.add(current_state)
+
+            # Get possible actions for the current state
+            possible_actions = self.get_actions(current_state)
+
+            # For each possible action, generate the next state
+            for action in possible_actions:
+                next_state = self.execute(current_state, action)
+
+                # Calculate the g(n) for the next state
+                new_g_cost = g_cost[current_state] + 1  # Every action has a uniform cost of 1
+
+                if next_state not in g_cost or new_g_cost < g_cost[next_state]:
+                    g_cost[next_state] = new_g_cost
+
+                    # Calculate the heuristic cost h(n) for the next state
+                    h_cost = self.heuristic(next_state)
+
+                    # Calculate the total cost f(n) = g(n) + h(n)
+                    f_cost = new_g_cost + h_cost
+
+                    # Push the next state to the priority queue with the updated f(n)
+                    heapq.heappush(frontier, (f_cost, next_state, path + [(current_state, action)]))
+
+        return None  # No solution found
+
+    def heuristic(self, state):
+        """
+        A simple heuristic function that estimates the cost from the current state to the goal state.
+        For example, this could be based on the Manhattan distance or the number of misplaced pieces.
+        """
+        current_board, player_idx = state
+        goal_board = tuple(self.goal_state_set)[0][0]  # Get the goal board state
+
+        # Example heuristic: count the number of pieces that are not in their goal position
+        mismatches = sum(1 for i in range(len(current_board)) if current_board[i] != goal_board[i])
+
+        return mismatches
 
 
 if __name__ == '__main__':
-    b1 = BoardState()
-    b2 = BoardState()
-    b2.update(0, 23)
+    all_reachable_tests = [
+        (
+            [
+                (1,1),(0,1),(2,1),(1,2),(1,0),(1,1),
+                (0,0),(2,0),(0,2),(2,2),(3,3),(3,3)
+            ],
+            set([(0,1),(2,1),(1,2),(1,0)]),
+            0
+        ),
+        (
+            [
+                (1,1),(0,1),(2,1),(1,2),(1,0),(1,1),
+                (0,0),(2,0),(0,2),(2,2),(3,3),(3,3)
+            ],
+            set([(2,2)]),
+            1
+        ),
+        (
+            [
+                (1,1),(0,1),(2,1),(1,2),(1,0),(1,1),
+                (0,0),(2,0),(0,2),(2,2),(3,3),(0,0)
+            ],
+            set(),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(0,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
+            ],
+            set([(2,0),(0,2),(2,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
+            ],
+            set([(0,0),(0,2),(2,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(0,2),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
+            ],
+            set([(0,0),(2,0),(2,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,2),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
+            ],
+            set([(0,0),(2,0),(0,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(0,3),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
+            ],
+            set([(0,0),(2,0),(0,2),(2,2)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(0,1)
+            ],
+            set([(2,1),(3,1),(3,2),(2,3)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(2,1)
+            ],
+            set([(0,1),(3,1),(3,2),(2,3)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(3,1)
+            ],
+            set([(0,1),(2,1),(3,2),(2,3)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(3,2)
+            ],
+            set([(0,1),(2,1),(3,1),(2,3)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(2,3),(2,3)
+            ],
+            set([(0,1),(2,1),(3,1),(3,2)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(1,2)
+            ],
+            set([(0,1),(2,1),(3,1),(3,2)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(0,1)
+            ],
+            set([(2,1),(3,1),(3,2),(1,2)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(2,1)
+            ],
+            set([(0,1),(3,1),(3,2),(1,2)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,1)
+            ],
+            set([(0,1),(2,1),(3,2),(1,2)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
+            ],
+            set([(0,1),(2,1),(3,1),(1,2)]),
+            1
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(0,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
+            ],
+            set([(2,0),(0,2),(2,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,0),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
+            ],
+            set([(0,0),(0,2),(2,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(0,2),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
+            ],
+            set([(0,0),(2,0),(2,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(2,2),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
+            ],
+            set([(0,0),(2,0),(0,2),(0,3)]),
+            0
+        ),
+        (
+            [
+                (0,0),(2,0),(0,2),(2,2),(0,3),(0,3),
+                (0,1),(2,1),(3,1),(3,2),(1,2),(3,2)
+            ],
+            set([(0,0),(2,0),(0,2),(2,2)]),
+            0
+        ),
+    ]
 
-    gsp = GameStateProblem(b1, b2, 0)
-    sln = gsp.search_alg_fnc()
+    def test_ball_reachability(state, reachable, player):
+        board = BoardState()
+        board.state = np.array(list(board.encode_single_pos(cr) for cr in state))
+        board.decode_state = board.make_state()
+        predicted_reachable_encoded = Rules.single_ball_actions(board, player)
+        encoded_reachable = set(board.encode_single_pos(cr) for cr in reachable)
+        print("Predicted reachable: ", predicted_reachable_encoded)
+        print("Actual reachable: ", encoded_reachable)
+        assert predicted_reachable_encoded == encoded_reachable
 
-    ## Single Step
-    ref = [(tuple((tuple(b1.state), 0)), (0, 14)), (tuple((tuple(b2.state), 1)), None)]
-        
-    print(f"Our Search: {sln}")
-    print(f"Actual Reference: {ref}")
+    for idx, test in enumerate(all_reachable_tests):
+        state = test[0]
+        reachable = test[1]
+        player = test[2]
+        print(f"Test #{idx}")
+        print("State: ", state)
+        print("Reachable: ", reachable)
+        print("Player: ", player)
+        print(test_ball_reachability(state, reachable, player))
+        print(f"{'='*20}")

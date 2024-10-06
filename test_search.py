@@ -18,7 +18,7 @@ class TestSearch:
     ## NOTE: If you'd like to test multiple variants of your algorithms, enter their keys below
     ## in the parametrize function. Your set_search_alg should then set the correct method to
     ## use.
-    @pytest.mark.parametrize("alg", ["", ""])
+    @pytest.mark.parametrize("alg", ["ASTAR"])
     def test_game_state_problem(self, alg):
         """
         Tests search based planning
@@ -45,8 +45,8 @@ class TestSearch:
         ## Two Step:
         ## (0, 14) or (0, 10) -> (any) -> (0, 23) -> (undo any) -> (None, goal state)
 
-        #print(gsp.goal_state_set)
-        #print(sln)
+        # print(gsp.goal_state_set)
+        # print(sln)
         assert len(sln) == 5 ## Player 1 needs to move once, then move the piece back
         assert sln[0] == (tuple((tuple(b1.state), 0)), (0, 14)) or sln[0] == (tuple((tuple(b1.state), 0)), (0, 10))
         assert sln[1][0][1] == 1
