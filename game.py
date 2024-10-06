@@ -72,19 +72,40 @@ class BoardState:
 
     def is_valid(self):
         """
-        Validates the board state by checking piece positions and constraints
+        Checks if a board configuration is valid based on the game rules:
+        - All pieces must be within the 8x7 grid (positions 0-55).
+        - No two block pieces can occupy the same position (balls are allowed to overlap with block pieces).
+        - White's ball (index 5) must be on one of White's pieces (indices 0-4).
+        - Black's ball (index 11) must be on one of Black's pieces (indices 6-10).
+        
+        Returns:
+            True if the board configuration is valid, otherwise False.
         """
-        positions = set()
+        print(self.state)
 
-        # Check all pieces' positions
-        for idx in range(len(self.state)):
-            pos = self.decode_single_pos(self.state[idx])
-            if not (0 <= pos[0] < self.N_COLS and 0 <= pos[1] < self.N_ROWS):  # Check bounds
+        # 1. Check if all positions are within the valid range (0 to 55)
+        for pos in self.state:
+            if not (0 <= pos <= 55):
                 return False
-            if pos in positions:  # Ensure no overlapping pieces
-                return False
-            positions.add(pos)
 
+        # 2. Check for overlapping block pieces, excluding ball positions (5 and 11)
+        white_pieces = list(self.state[:5].copy())
+        black_pieces = list(self.state[6:11].copy())
+        block_pieces = white_pieces + black_pieces # Block pieces only, excluding balls
+        if len(set(block_pieces)) < len(block_pieces):
+            return False  # Invalid state due to overlapping block pieces
+
+        # 3. Check that the white ball (index 5) is on a white block piece (indices 0-4)
+        white_ball_pos = self.state[5]
+        if white_ball_pos not in self.state[:5]:  # White ball must be on one of White's block pieces
+            return False
+
+        # 4. Check that the black ball (index 11) is on a black block piece (indices 6-10)
+        black_ball_pos = self.state[11]
+        if black_ball_pos not in self.state[6:11]:  # Black ball must be on one of Black's block pieces
+            return False
+
+        # If all checks pass, the board configuration is valid
         return True
 
 
@@ -284,9 +305,46 @@ class GameSimulator:
 
 
 if __name__ == '__main__':
-    def test_termination_state(state):
+    def test_is_valid():
+        print("Initial State")
         board = BoardState()
-        board.state = np.array(state)
-        board.decode_state = board.make_state()
-        return board.is_termination_state()
-    print(test_termination_state([1,2,3,4,49,49,50,51,52,53,54,0]))
+        assert board.is_valid()
+
+        ## Out of bounds test
+        board.update(0,-1)
+        print(f"Move (0,-1)")
+        assert not board.is_valid()
+        
+        board.update(0,0)
+        print(f"Move (0,0)")
+        assert board.is_valid()
+        
+        ## Out of bounds test
+        board.update(0,-1)
+        board.update(6,56)
+        print(f"Move (0,-1) (6,56)")
+        assert not board.is_valid()
+        
+        ## Overlap test
+        board.update(0,0)
+        board.update(6,0)
+        print(f"Move (0,0) (6,0)")
+        assert not board.is_valid()
+
+        ## Ball is on index 0
+        board.update(5,1)
+        board.update(0,1)
+        board.update(6,50)
+        print(f"Move (5,1) (0,1) (6,50)")
+        assert board.is_valid()
+
+        ## Player is not holding the ball
+        board.update(5,0)
+        print(f"Move (5,0)")
+        assert not board.is_valid()
+        
+        board.update(5,10)
+        print(f"Move (5,10)")
+        assert not board.is_valid()
+
+    test_is_valid()
